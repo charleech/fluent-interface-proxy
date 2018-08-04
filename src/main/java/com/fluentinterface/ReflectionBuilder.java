@@ -1,28 +1,29 @@
 package com.fluentinterface;
 
 import com.fluentinterface.builder.Builder;
-import com.fluentinterface.proxy.AttributeAccessStrategy;
 import com.fluentinterface.proxy.BuilderDelegate;
-import com.fluentinterface.proxy.BuilderProxy;
-import com.fluentinterface.proxy.impl.FieldAttributeAccessStrategy;
-import com.fluentinterface.proxy.impl.SetterAttributeAccessStrategy;
-import com.fluentinterface.utils.GenericsUtils;
+import com.fluentinterface.proxy.DefaultBuilderDelegate;
+import com.fluentinterface.proxy.Instantiator;
+import com.fluentinterface.proxy.PropertyAccessStrategy;
+import com.fluentinterface.proxy.internal.BuilderProxy;
+import com.fluentinterface.proxy.internal.FieldPropertyAccessStrategy;
+import com.fluentinterface.proxy.internal.SetterPropertyAccessStrategy;
 
 import java.lang.reflect.InvocationHandler;
-import java.lang.reflect.Method;
 import java.lang.reflect.Proxy;
 
-public class ReflectionBuilder<T> {
+public class ReflectionBuilder<B> {
 
-    private static BuilderDelegate defaultBuilderDelegate = new InternalBuilderAsSuperClassDelegate();
+    private static BuilderDelegate defaultBuilderDelegate = new DefaultBuilderDelegate();
 
-    private BuilderDelegate<? super T> builderDelegate;
-    private Class<T> builderInterface;
+    private BuilderDelegate<? super B> builderDelegate;
+    private Class<B> builderInterface;
     private Class<?> builtClass = null;
-    private AttributeAccessStrategy attributeAccessStrategy;
+    private PropertyAccessStrategy propertyAccessStrategy;
+    private Instantiator instantiator;
 
     @SuppressWarnings("unchecked")
-    private ReflectionBuilder(Class<T> builderInterface) {
+    private ReflectionBuilder(Class<B> builderInterface) {
         if (!builderInterface.isInterface()) {
             throw new IllegalArgumentException(String.format(
                     "Can only create dynamic builder for interfaces. [%s] is not an interface.", builderInterface));
@@ -30,7 +31,7 @@ public class ReflectionBuilder<T> {
 
         this.builderInterface = builderInterface;
         this.builderDelegate = defaultBuilderDelegate;
-        this.attributeAccessStrategy = new SetterAttributeAccessStrategy();
+        this.propertyAccessStrategy = new SetterPropertyAccessStrategy();
     }
 
     public static void setDefaultBuilderDelegate(BuilderDelegate delegate) {
@@ -38,26 +39,31 @@ public class ReflectionBuilder<T> {
     }
 
     public static <T> ReflectionBuilder<T> implementationFor(Class<T> builderInterface) {
-        return new ReflectionBuilder<T>(builderInterface);
+        return new ReflectionBuilder<>(builderInterface);
     }
 
-    public ReflectionBuilder<T> builds(Class<?> objectsOfType) {
+    public ReflectionBuilder<B> builds(Class<?> objectsOfType) {
         this.builtClass = objectsOfType;
         return this;
     }
 
-    public ReflectionBuilder<T> withDelegate(BuilderDelegate<? super T> builderDelegate) {
+    public ReflectionBuilder<B> withDelegate(BuilderDelegate<? super B> builderDelegate) {
         this.builderDelegate = builderDelegate;
         return this;
     }
 
-    public ReflectionBuilder<T> usingAttributeAccessStrategy(AttributeAccessStrategy strategy) {
-        this.attributeAccessStrategy = strategy;
+    public ReflectionBuilder<B> usingAttributeAccessStrategy(PropertyAccessStrategy strategy) {
+        this.propertyAccessStrategy = strategy;
         return this;
     }
 
-    public ReflectionBuilder<T> usingFieldsDirectly() {
-        this.attributeAccessStrategy = new FieldAttributeAccessStrategy();
+    public ReflectionBuilder<B> usingFieldsDirectly() {
+        this.propertyAccessStrategy = new FieldPropertyAccessStrategy();
+        return this;
+    }
+
+    public ReflectionBuilder<B> usingInstantiator(Instantiator instantiator) {
+        this.instantiator = instantiator;
         return this;
     }
 
@@ -80,50 +86,14 @@ public class ReflectionBuilder<T> {
     }
 
     @SuppressWarnings("unchecked")
-    public T create() {
+    public B create() {
+        InvocationHandler handler = new BuilderProxy(builderInterface, getBuiltClass(),
+                                                     builderDelegate, propertyAccessStrategy, instantiator);
 
-        InvocationHandler handler = new BuilderProxy(builderInterface, getBuiltClass(), builderDelegate, attributeAccessStrategy);
-
-        return (T) Proxy.newProxyInstance(
+        return (B) Proxy.newProxyInstance(
                 builderInterface.getClassLoader(),
                 new Class[]{builderInterface},
                 handler);
     }
 
-    private static class InternalBuilderAsSuperClassDelegate implements BuilderDelegate<Builder> {
-
-        private static final String BUILD_METHOD_NAME = "build";
-        private Method buildMethod;
-
-        public InternalBuilderAsSuperClassDelegate() {
-            try {
-                this.buildMethod = Builder.class.getDeclaredMethod(BUILD_METHOD_NAME, Object[].class);
-            } catch (NoSuchMethodException e) {
-                throw new IllegalStateException(
-                        String.format("Could not find [%s] method on [%s] class.", BUILD_METHOD_NAME, Builder.class),
-                        e
-                );
-            }
-        }
-
-        @Override
-        public Class<?> getClassBuiltBy(Class<?> builderInterface) {
-            return GenericsUtils.getDeclaredGenericType(builderInterface, Builder.class);
-        }
-
-        @Override
-        public Object build(Builder builder) {
-            return builder.build();
-        }
-
-        @Override
-        public boolean isBuilderInstance(Object value) {
-            return value instanceof Builder;
-        }
-
-        @Override
-        public boolean isBuildMethod(Method method) {
-            return method.equals(buildMethod);
-        }
-    }
 }

@@ -2,10 +2,9 @@ package com.fluentinterface;
 
 import com.fluentinterface.domain.Person;
 import com.fluentinterface.domain.PersonBuilder;
-import com.fluentinterface.proxy.AttributeAccessStrategy;
-import com.fluentinterface.proxy.impl.FieldAttributeAccessStrategy;
-import com.fluentinterface.proxy.impl.SetterAttributeAccessStrategy;
-import org.junit.Before;
+import com.fluentinterface.proxy.PropertyAccessStrategy;
+import com.fluentinterface.proxy.internal.FieldPropertyAccessStrategy;
+import com.fluentinterface.proxy.internal.SetterPropertyAccessStrategy;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 import org.junit.runners.Parameterized;
@@ -16,9 +15,9 @@ import static com.fluentinterface.ReflectionBuilder.implementationFor;
 import static java.util.Arrays.asList;
 import static org.hamcrest.CoreMatchers.is;
 import static org.hamcrest.CoreMatchers.nullValue;
+import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.junit.Assert.assertThat;
-import static org.junit.internal.matchers.IsCollectionContaining.hasItem;
 
 @RunWith(Parameterized.class)
 public class BuilderProxyTest {
@@ -26,39 +25,32 @@ public class BuilderProxyTest {
     @Parameterized.Parameters
     public static Iterable<Object[]> strategies() {
         return asList(
-                new Object[] {new FieldAttributeAccessStrategy()},
-                new Object[] {new SetterAttributeAccessStrategy()}
+                new Object[] {new FieldPropertyAccessStrategy()},
+                new Object[] {new SetterPropertyAccessStrategy()}
         );
     }
 
-    private PersonBuilder personBuilder;
+    private PropertyAccessStrategy propertyAccessStrategy;
 
-    private AttributeAccessStrategy attributeAccessStrategy;
-
-    public BuilderProxyTest(AttributeAccessStrategy attributeAccessStrategy) {
-        this.attributeAccessStrategy = attributeAccessStrategy;
-    }
-
-    @Before
-    public void setup() throws InstantiationException, IllegalAccessException {
-        personBuilder = aPerson();
+    public BuilderProxyTest(PropertyAccessStrategy propertyAccessStrategy) {
+        this.propertyAccessStrategy = propertyAccessStrategy;
     }
 
     private PersonBuilder aPerson() {
         return implementationFor(PersonBuilder.class)
-                .usingAttributeAccessStrategy(attributeAccessStrategy)
+                .usingAttributeAccessStrategy(propertyAccessStrategy)
                 .create();
     }
 
     @Test
     public void shouldSupportAnyMethodNamedAfterTargetPropertyName() {
-        Person built = personBuilder
+        Person built = aPerson()
                 .forAge(10)
                 .build();
 
         assertThat(built.getAge(), is(10));
 
-        built = personBuilder
+        built = aPerson()
                 .withAge(10)
                 .build();
 
@@ -66,9 +58,23 @@ public class BuilderProxyTest {
     }
 
     @Test
-    public void shouldSetPropertyValueString() {
+    public void shouldSupportSetterMethodsWithNoArguments() {
+        Person built = aPerson()
+                .unnamed()
+                .build();
 
-        Person built = personBuilder
+        assertThat(built.getName(), is(nullValue()));
+
+        built = aPerson()
+                .notYetBorn()
+                .build();
+
+        assertThat(built.getAge(), is(0));
+    }
+
+    @Test
+    public void shouldSetPropertyValueString() {
+        Person built = aPerson()
                 .withName("John Smith")
                 .build();
 
@@ -77,8 +83,7 @@ public class BuilderProxyTest {
 
     @Test
     public void shouldSetPropertyValuePrimitive() {
-
-        Person built = personBuilder
+        Person built = aPerson()
                 .withAge(10)
                 .build();
 
@@ -87,8 +92,7 @@ public class BuilderProxyTest {
 
     @Test
     public void shouldSetPropertyValueToLastOneWhenCalledMultipleTimes() {
-
-        Person built = personBuilder
+        Person built = aPerson()
                 .withAge(10)
                 .withAge(20)
                 .build();
@@ -98,9 +102,7 @@ public class BuilderProxyTest {
 
     @Test
     public void shouldSetPropertyValueArrayToList() {
-
-
-        Person built = personBuilder
+        Person built = aPerson()
                 .withFriends(
                         aPerson().withName("John").build(),
                         aPerson().withName("Diane").build())
@@ -113,8 +115,7 @@ public class BuilderProxyTest {
 
     @Test
     public void shouldSetPropertyValueArrayOfBuildersToCollection() {
-
-        Person built = personBuilder
+        Person built = aPerson()
                 .withFriends(
                         aPerson().withName("Joe"),
                         aPerson().withName("Blow"))
@@ -127,8 +128,7 @@ public class BuilderProxyTest {
 
     @Test
     public void shouldSetPropertyValueArrayOfBuildersToArray() {
-
-        Person built = personBuilder
+        Person built = aPerson()
                 .withParents(
                         aPerson().withName("Mommy"),
                         aPerson().withName("Daddy"))
@@ -141,7 +141,7 @@ public class BuilderProxyTest {
 
     @Test
     public void shouldSetPropertyValueCollectionOfBuildersToCollection() {
-        Person built = personBuilder
+        Person built = aPerson()
                 .withFriends(asList(
                         aPerson().withName("Joe"),
                         aPerson().withName("Blow")
@@ -155,8 +155,7 @@ public class BuilderProxyTest {
 
     @Test
     public void shouldSetPropertyValueCollectionToCollection() {
-
-        Person built = personBuilder
+        Person built = aPerson()
                 .withParents(asList(
                         aPerson().withName("Mommy").build(),
                         aPerson().withName("Daddy").build()))
@@ -169,8 +168,7 @@ public class BuilderProxyTest {
 
     @Test
     public void shouldSetPropertyValueArrayToSet() {
-
-        Person built = personBuilder
+        Person built = aPerson()
                 .withSurnames("Bill", "William", "Guillaume")
                 .build();
 
@@ -182,18 +180,16 @@ public class BuilderProxyTest {
 
     @Test
     public void shouldSetPropertyValueArrayOfPrimitivesToArrayOfPrimitives() {
-
-        Person built = personBuilder
+        Person built = aPerson()
                 .withAgesOfMarriages(23, 45)
                 .build();
 
-        assertThat(built.getAgesOfMarriages(), is(new int[] {23, 45}));
+        assertThat(built.getAgesOfMarriages(), is(new int[]{23, 45}));
     }
 
     @Test
     public void shouldSetPropertyValueBuilderToObject() {
-
-        Person built = personBuilder
+        Person built = aPerson()
                 .withPartner(
                         aPerson().withName("Diane")
                 ).build();
@@ -203,18 +199,16 @@ public class BuilderProxyTest {
     }
 
     @Test
-    public void shouldCopyCollectionDirectlyWhenNotSupported() {
-
+    public void shouldCopyCollectionByReferenceWhenCollectionTypeNotSupported() {
         ArrayDeque queue = new ArrayDeque();
-        Person built = personBuilder.withQueue(queue).build();
+        Person built = aPerson().withQueue(queue).build();
 
         assert built.getQueue() == queue;
     }
 
     @Test
     public void shouldCallSpecificConstructorWhenBuildMethodCalledWithParameters() {
-
-        Person person = personBuilder.build("Jeremy", 3);
+        Person person = aPerson().build("Jeremy", 3);
 
         assertThat(person.getName(), is("Jeremy"));
         assertThat(person.getAge(), is(3));
@@ -222,8 +216,7 @@ public class BuilderProxyTest {
 
     @Test
     public void shouldCallSpecificConstructorWhenBuildMethodCalledWithParametersWithNullValue() {
-
-        Person person = personBuilder.build("Jeremy", 3, null);
+        Person person = aPerson().build("Jeremy", 3, null);
 
         assertThat(person.getName(), is("Jeremy"));
         assertThat(person.getAge(), is(3));
@@ -232,35 +225,56 @@ public class BuilderProxyTest {
 
     @Test
     public void shouldUseBuilderWhenPassedInBuildMethodArguments() {
-
-        Person person = personBuilder.build("Jeremy", 3, aPerson().withName("Suzana"));
+        Person person = aPerson().build("Jeremy", 3, aPerson().withName("Suzana"));
 
         assertThat(person.getName(), is("Jeremy"));
         assertThat(person.getAge(), is(3));
         assertThat(person.getPartner().getName(), is("Suzana"));
     }
 
+    @Test
+    public void shouldSetPropertyUserSetsAnnotation() {
+        Person built = aPerson()
+                .named("John Smith")
+                .aged(20)
+                .build();
+
+        assertThat(built.getName(), is("John Smith"));
+        assertThat(built.getAge(), is(20));
+    }
+
+    @Test
+    public void shouldConvertValueToTargetTypeWhenPossible() {
+        Person built = aPerson().withAge("16").build();
+
+        assertThat(built.getAge(), is(16));
+    }
+
+    @Test
+    public void shouldPassthroughDefaultMethodsDefinedOnBuilderInterface() {
+        Person built = aPerson().withManyValues("John Doe", 18).build();
+
+        assertThat(built.getName(), is("John Doe"));
+        assertThat(built.getAge(), is(18));
+    }
+
+    @Test(expected = NumberFormatException.class)
+    public void shouldFailWhenConversionToTargetTypeFails() {
+        aPerson().withAge("invalid int").build();
+    }
+
     @Test(expected = IllegalArgumentException.class)
     public void shouldFailWhenMultipleConstructorsMatchBuildMethodArguments() {
-
-        personBuilder.build(null, 3);
+        aPerson().build(null, 3);
     }
 
     @Test(expected = IllegalStateException.class)
     public void shouldFailWhenBuilderUsesAnUnknownProperty() {
-
-        personBuilder.withAnUnknownProperty("fails").build();
-    }
-
-    @Test(expected = IllegalArgumentException.class)
-    public void shouldFailWhenBuilderUsesAnIncompatiblePropertyType() {
-
-        personBuilder.withAge("fails").build();
+        aPerson().withAnUnknownProperty("fails").build();
     }
 
     @Test(expected = IllegalStateException.class)
     public void shouldFailWhenBuilderMethodDoesNotContainPropertyName() {
-
-        personBuilder.something("fails").build();
+        aPerson().something("fails").build();
     }
 }

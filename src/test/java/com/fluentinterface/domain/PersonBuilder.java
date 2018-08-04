@@ -1,5 +1,6 @@
 package com.fluentinterface.domain;
 
+import com.fluentinterface.annotation.Sets;
 import com.fluentinterface.builder.Builder;
 
 import java.util.Collection;
@@ -7,13 +8,25 @@ import java.util.Queue;
 
 public interface PersonBuilder extends Builder<Person> {
 
+    @Sets(property = "name")
+    PersonBuilder named(String name);
+
+    @Sets(property = "name")
+    PersonBuilder unnamed();
+
     PersonBuilder withName(String name);
+
+    @Sets(property = "age")
+    PersonBuilder aged(int age);
 
     PersonBuilder withAge(int age);
 
     PersonBuilder forAge(int age);
 
     PersonBuilder withAge(String age);
+
+    @Sets(property = "age")
+    PersonBuilder notYetBorn();
 
     PersonBuilder withPartner(PersonBuilder diane);
 
@@ -39,4 +52,8 @@ public interface PersonBuilder extends Builder<Person> {
 
     /** Queues are supported only for direct assignment (target class property must also be a Queue). */
     PersonBuilder withQueue(Queue queue);
+
+    default PersonBuilder withManyValues(String name, int age) {
+        return withName(name).withAge(age);
+    }
 }
